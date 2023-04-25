@@ -6,4 +6,8 @@ cache-sim: test.cpp
 
 
 clean:
-	rm -f cache-sim
+	rm -f cache-sim output.txt
+
+
+debug: cache-sim
+	gdb cache-sim
