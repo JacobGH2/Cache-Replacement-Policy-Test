@@ -5,6 +5,7 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <list>
 using namespace std;
 
 string fileName;
@@ -119,8 +120,8 @@ void setAssociative(int cacheSize, int numSets, ofstream &out) {
     int shiftAmt1 = log2(lineSize);
     int shiftAmt2 = log2(numIndices);
 
-    // update LRUBuf for loads, check during stores
-    vector<int> LRUBuf[numIndices];
+    // linked list LRU Buffer
+    list<int> LRUBuf[numIndices];
 
     newLine:
     while (getline(infile, line)) {
@@ -140,11 +141,7 @@ void setAssociative(int cacheSize, int numSets, ofstream &out) {
                 if (cache[index][i][0] == 1 && cache[index][i][1] == targetTag) {
                     hits++;
                     // if setIndex is in LRU, erase it, then add at the back (stores check the front)
-                    int indexInVector = getIndexInVector(i, LRUBuf[index]);
-                    if (indexInVector != -1) {
-                        std::vector<int>::iterator it = LRUBuf[index].begin() + indexInVector;
-                        LRUBuf[index].erase(it);
-                    }
+                    LRUBuf[index].remove(i);
                     LRUBuf[index].push_back(i);
                     //cout << "LRU Index: " << index << " size: " << LRUBuf[index].size() << endl;
                     goto newLine;
@@ -157,21 +154,18 @@ void setAssociative(int cacheSize, int numSets, ofstream &out) {
                     cache[index][i][0] = 1;
                     cache[index][i][1] = targetTag;
 
-                    int indexInVector = getIndexInVector(i, LRUBuf[index]);
-                    if (indexInVector != -1) {
-                        std::vector<int>::iterator it = LRUBuf[index].begin() + indexInVector;
-                        LRUBuf[index].erase(it);
-                    }
+                    LRUBuf[index].remove(i);
                     LRUBuf[index].push_back(i);
                     
                     goto newLine;
                 }
             }
             // no hit or open spot, must evict
-            int leastRecentIndex = LRUBuf[index].at(0);
+            int leastRecentIndex = LRUBuf[index].front();
             cache[index][leastRecentIndex][1] = targetTag;
-            LRUBuf[index].erase(LRUBuf[index].begin());
+            LRUBuf[index].pop_front();
             LRUBuf[index].push_back(leastRecentIndex);
+            
             goto newLine;
         } else {
             // store
@@ -180,11 +174,7 @@ void setAssociative(int cacheSize, int numSets, ofstream &out) {
                 if (cache[index][i][0] == 1 && cache[index][i][1] == targetTag) {
                     hits++;
                     
-                    int indexInVector = getIndexInVector(i, LRUBuf[index]);
-                    if (indexInVector != -1) {
-                        std::vector<int>::iterator it = LRUBuf[index].begin() + indexInVector;
-                        LRUBuf[index].erase(it);
-                    }
+                    LRUBuf[index].remove(i);
                     LRUBuf[index].push_back(i);
                    
                     goto newLine;
@@ -196,28 +186,22 @@ void setAssociative(int cacheSize, int numSets, ofstream &out) {
                     cache[index][i][0] = 1;
                     cache[index][i][1] = targetTag;
                     
-                    int indexInVector = getIndexInVector(i, LRUBuf[index]);
-                    if (indexInVector != -1) {
-                        std::vector<int>::iterator it = LRUBuf[index].begin() + indexInVector;
-                        LRUBuf[index].erase(it);
-                    }
+                    LRUBuf[index].remove(i);
                     LRUBuf[index].push_back(i);
 
                     goto newLine;
-
                 }
             }
             // no open spots, must evict
-            int leastRecentIndex = LRUBuf[index].at(0);
+            int leastRecentIndex = LRUBuf[index].front();
             cache[index][leastRecentIndex][1] = targetTag;
-            LRUBuf[index].erase(LRUBuf[index].begin());
+            LRUBuf[index].pop_front();
             LRUBuf[index].push_back(leastRecentIndex);
             goto newLine;
         }     
     }
     outputResult(hits, accesses, out);
 }
-
 
 int main(int argc, char *argv[]) {
     
@@ -238,6 +222,7 @@ int main(int argc, char *argv[]) {
     setAssociative(16000, 8, outfile);
     setAssociative(16000, 16, outfile);
     outfile << endl;
+
     
 
 
