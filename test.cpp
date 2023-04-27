@@ -245,7 +245,7 @@ void fullyAssociativeLRU(int cacheSize, ofstream &out) {
             int leastRecentIndex = LRUBuf.front();          // EVICTION STEP, ONLY REACHED IF NO HITS OR EMPTY SPOTS
             cache[leastRecentIndex][0] = 1;
             cache[leastRecentIndex][1] = targetTag;
-            LRUBuf.pop_front();
+            LRUBuf.remove(leastRecentIndex);
             LRUBuf.push_back(leastRecentIndex);
             goto newLine;
         } else {
@@ -271,7 +271,7 @@ void fullyAssociativeLRU(int cacheSize, ofstream &out) {
             int leastRecentIndex = LRUBuf.front();
             cache[leastRecentIndex][0] = 1;
             cache[leastRecentIndex][1] = targetTag;
-            LRUBuf.pop_front();
+            LRUBuf.remove(leastRecentIndex);
             LRUBuf.push_back(leastRecentIndex);
         }
     }
@@ -782,7 +782,7 @@ int main(int argc, char *argv[]) {
     fileName = argv[1]; 
     ofstream outfile(argv[2], std::ofstream::out);
     
-    /*
+    
     directMapped(1000, outfile);
     directMapped(4000, outfile);
     directMapped(16000, outfile);
@@ -798,10 +798,10 @@ int main(int argc, char *argv[]) {
     outfile << endl;
     
     
-    */
+    
     fullyAssociativeLRU(16000, outfile);
     outfile << endl;
-    /*
+    
 
    //fullyAssociativeHotCold(16000, outfile);
 
@@ -825,7 +825,7 @@ int main(int argc, char *argv[]) {
    setAssociativeNLPOnMiss(16000, 4, outfile);
    setAssociativeNLPOnMiss(16000, 8, outfile);
    setAssociativeNLPOnMiss(16000, 16, outfile);
-    */
+    
     outfile.close();
 
    return 0;
