@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <vector>
 #include <list>
+#include <bitset>
 using namespace std;
 
 string fileName;
@@ -205,33 +206,25 @@ void setAssociative(int cacheSize, int numSets, ofstream &out) {
 }
 
 void fullyAssociativeLRU(int cacheSize, ofstream &out) {
-    int hits = 0, accesses = 0;
-
+    int hits = 0, accesses = 0;                     // SETUP
     int numIndices = cacheSize/lineSize;
-    //makePowerOf2(numIndices);
-
+    makePowerOf2(numIndices);
     int cache[numIndices][2];
-
     char action;
     unsigned long long target;
-
     ifstream infile(fileName);
     string line;
-
-    // shift amts
     int shiftAmt1 = log2(lineSize);
-
-    list<int> LRUBuf(numIndices);
-
+    list<int> LRUBuf = list<int>();             // SINGE LINKED LIST BUFFER
+    
     newLine:
     while (getline(infile, line)) {
         accesses++;
         istringstream iss(line);
         iss >> action >> std::hex >> target;
-
         int targetTag = target >> shiftAmt1;
-
-        if (action == 'L') {
+        
+        if (action == 'L') {                        // LOAD
             for (int i = 0; i < numIndices; i++) {
                 if (cache[i][0] == 1 && cache[i][1] == targetTag) {
                     hits++;
@@ -242,7 +235,6 @@ void fullyAssociativeLRU(int cacheSize, ofstream &out) {
             }
             for (int i = 0; i < numIndices; i++) {
                 if (cache[i][0] == 0) {
-                    
                     cache[i][0] = 1;
                     cache[i][1] = targetTag;
                     LRUBuf.remove(i);
@@ -250,15 +242,14 @@ void fullyAssociativeLRU(int cacheSize, ofstream &out) {
                     goto newLine;
                 }
             }
-            
-            int leastRecentIndex = LRUBuf.front();
+            int leastRecentIndex = LRUBuf.front();          // EVICTION STEP, ONLY REACHED IF NO HITS OR EMPTY SPOTS
             cache[leastRecentIndex][0] = 1;
             cache[leastRecentIndex][1] = targetTag;
             LRUBuf.pop_front();
             LRUBuf.push_back(leastRecentIndex);
             goto newLine;
         } else {
-            for (int i = 0; i < numIndices; i++) {
+            for (int i = 0; i < numIndices; i++) {                  // STORE
                 if (cache[i][0] == 1 && cache[i][1] == targetTag) {
                     hits++;
                     LRUBuf.remove(i);
@@ -271,14 +262,12 @@ void fullyAssociativeLRU(int cacheSize, ofstream &out) {
                     hits++;
                     cache[i][0] = 1;
                     cache[i][1] = targetTag;
-
                     LRUBuf.remove(i);
                     LRUBuf.push_back(i);
                     goto newLine;
                 }
             }
             // evict
-
             int leastRecentIndex = LRUBuf.front();
             cache[leastRecentIndex][0] = 1;
             cache[leastRecentIndex][1] = targetTag;
@@ -286,6 +275,103 @@ void fullyAssociativeLRU(int cacheSize, ofstream &out) {
             LRUBuf.push_back(leastRecentIndex);
         }
     }
+    outputResult(hits, accesses, out);
+}
+
+int getIndexFromBitset(bitset<511> &set) {
+    // helper for pseudoLRU
+    int currBit = 0;
+    int index = 0;
+    while (index < 512 && currBit < 512) {
+        currBit = currBit*2 + set[index]; // keep adding to currBit to get LRU
+        index = index*2 + 1 + set[index]; // needed for traversal through the tree
+    }
+    return currBit;
+}
+
+void updateLRUBitset(bitset<511> &set, int MRUIndex) {
+    // helper for pseudoLRU
+    bitset<9> numBit(MRUIndex);
+    int numIndex = 8;
+    int bitsetIndex = 0;
+    while (numIndex >= 0) {
+        if (numBit[numIndex] == 0) {
+            //cout << "bitset index: " << bitsetIndex << endl;
+            set[bitsetIndex] = 1;
+            bitsetIndex = bitsetIndex*2 + 2;
+        } else {
+            set[bitsetIndex] = 0;
+            bitsetIndex = bitsetIndex*2 +1;
+        }
+        numIndex--;
+    }
+}
+
+void fullyAssociativeHotCold(int cacheSize, ofstream &out) {
+    int hits = 0, accesses = 0;
+
+    int numIndices = cacheSize/lineSize;
+    makePowerOf2(numIndices);
+    //cout << "Num indices: " << numIndices << endl;
+    int cache[numIndices][2];
+
+    std::bitset<511> LRUBit;
+
+    char action;
+    unsigned long long target;
+    ifstream infile(fileName);
+    string line;
+    int shiftAmt1 = log2(lineSize);
+    //list<int> LRUBuf = list<int>();
+    //cout << "lrubuf initial size: " << LRUBuf.size();
+
+    newLine:
+    while (getline(infile, line)) {
+        
+        accesses++;
+        istringstream iss(line);
+        iss >> action >> std::hex >> target;
+
+        int targetTag = target >> shiftAmt1;
+
+        if (action == 'L') {
+            for (int i = 0; i < numIndices; i++) {
+                if (cache[i][0] == 1 && cache[i][1] == targetTag) {
+                    hits++;
+                    //cout << "lru size after hit: " << LRUBuf.size() << endl;
+                    updateLRUBitset(LRUBit, i);
+                    goto newLine;
+                }
+            }
+            // no matches, insert into cache using pLRU
+
+            
+            int leastRecentIndex = getIndexFromBitset(LRUBit);
+            cout << "LRU Load: " << leastRecentIndex << endl;
+            cache[leastRecentIndex][0] = 1;
+            cache[leastRecentIndex][1] = targetTag;
+            
+            updateLRUBitset(LRUBit, leastRecentIndex);
+            goto newLine;
+        } else {
+            for (int i = 0; i < numIndices; i++) {
+                if (cache[i][0] == 1 && cache[i][1] == targetTag) {
+                    hits++;
+                    updateLRUBitset(LRUBit, i);
+                    goto newLine;
+                }
+            } 
+            
+            // no hit, use pLRU from bitset
+
+            int leastRecentIndex = getIndexFromBitset(LRUBit);
+            cout << "LRU Store: " << leastRecentIndex << endl;
+            cache[leastRecentIndex][0] = 1;
+            cache[leastRecentIndex][1] = targetTag;
+            updateLRUBitset(LRUBit, leastRecentIndex);
+        }
+    }
+    //cout << "final lru size: " << LRUBuf.size() << endl;
     outputResult(hits, accesses, out);
 }
 
@@ -710,27 +796,36 @@ int main(int argc, char *argv[]) {
     setAssociative(16000, 8, outfile);
     setAssociative(16000, 16, outfile);
     outfile << endl;
-    */
     
-    //fullyAssociativeLRU(16000, outfile);
-    //outfile << endl;
+    
+    */
+    fullyAssociativeLRU(16000, outfile);
+    outfile << endl;
     /*
+
+   //fullyAssociativeHotCold(16000, outfile);
+
+    outfile << endl;
+
+
     setAssociativeNoAlloc(16000, 2, outfile);
     setAssociativeNoAlloc(16000, 4, outfile);
     setAssociativeNoAlloc(16000, 8, outfile);
     setAssociativeNoAlloc(16000, 16, outfile);
-    */
-   /*
+    
+    outfile << endl;
+   
    setAssociativeNLP(16000, 2, outfile);
    setAssociativeNLP(16000, 4, outfile);
    setAssociativeNLP(16000, 8, outfile);
    setAssociativeNLP(16000, 16, outfile);
-    */
+    
+   outfile << endl;
    setAssociativeNLPOnMiss(16000, 2, outfile);
    setAssociativeNLPOnMiss(16000, 4, outfile);
    setAssociativeNLPOnMiss(16000, 8, outfile);
    setAssociativeNLPOnMiss(16000, 16, outfile);
-
+    */
     outfile.close();
 
    return 0;
